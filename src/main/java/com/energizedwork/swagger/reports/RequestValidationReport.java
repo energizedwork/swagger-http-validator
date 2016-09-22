@@ -1,21 +1,18 @@
-package com.energizedwork.swagger;
+package com.energizedwork.swagger.reports;
+
+import com.energizedwork.swagger.ValidationError;
 
 import java.util.List;
 
-public class RequestValidationReport {
+public class RequestValidationReport extends BaseValidationReport {
 
-    private final List<String> globalErrors;
     private final List<ValidationError> parameterErrors;
     private final List<ValidationError> bodyErrors;
 
     public RequestValidationReport(List<String> globalErrors, List<ValidationError> parameterErrors, List<ValidationError> bodyErrors) {
-        this.globalErrors = globalErrors;
+        super(globalErrors);
         this.parameterErrors = parameterErrors;
         this.bodyErrors = bodyErrors;
-    }
-
-    public List<String> getGlobalErrors() {
-        return globalErrors;
     }
 
     public List<ValidationError> getParameterErrors() {

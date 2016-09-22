@@ -11,4 +11,11 @@ To run the tests:
 ``./gradlew test``
 
 
+## TODO
+* Form validation
+* multipleOf
+* allowEmptyValue
+* collectionFormat
+* uniqueItems
+
 

@@ -1,6 +1,6 @@
 package com.energizedwork.swagger;
 
-import com.energizedwork.swagger.*;
+import com.energizedwork.swagger.reports.RequestValidationReport;
 import org.junit.Test;
 
 import java.util.List;

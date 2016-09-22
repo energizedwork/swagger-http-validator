@@ -2,6 +2,9 @@ package com.energizedwork.swagger;
 
 import com.energizedwork.swagger.parameters.ParameterFormat;
 import com.energizedwork.swagger.parameters.PathTemplate;
+import com.energizedwork.swagger.reports.InteractionValidationReport;
+import com.energizedwork.swagger.reports.RequestValidationReport;
+import com.energizedwork.swagger.reports.ResponseValidationReport;
 import com.energizedwork.swagger.validators.ParameterValidator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +24,7 @@ import io.swagger.parser.SwaggerParser;
 import com.energizedwork.swagger.parameters.ParameterValue;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,9 +69,35 @@ public class SwaggerHttpValidator {
 
     public RequestValidationReport validateRequest(CheckableRequest request) {
         ImmutableList.Builder<String> globalErrorsBuilder = ImmutableList.builder();
-        ImmutableList.Builder<ValidationError> parameterErrorsBuilder = ImmutableList.builder();
-        List<ValidationError> bodyErrors = emptyList();
 
+        Optional<SwaggerOperationDef> maybeOperationDef = findOperation(request, globalErrorsBuilder);
+
+        List<ValidationError> parameterValidationErrors = maybeOperationDef.map(operationDef -> {
+            ImmutableList.Builder<ValidationError> parameterErrorsBuilder = ImmutableList.builder();
+            parameterErrorsBuilder.addAll(validatePathParameters(request, operationDef.getPathTemplate(), operationDef.getOperation()));
+            parameterErrorsBuilder.addAll(validateQueryParameters(request, operationDef.getOperation()));
+            parameterErrorsBuilder.addAll(validateHeaderParameters(request, operationDef.getOperation()));
+            parameterErrorsBuilder.addAll(validateCookieParameters(request, operationDef.getOperation()));
+            return parameterErrorsBuilder.build();
+        }).orElse(ImmutableList.of());
+
+        List<ValidationError> bodyErrors = maybeOperationDef.map(operationDef -> {
+            try {
+                return validateBodyIfPresent(request, operationDef.getOperation());
+            } catch (ProcessingException e) {
+                globalErrorsBuilder.add("Failed to validate request body. Reason: " + e.getMessage());
+                return Collections.<ValidationError>emptyList();
+            }
+        }).orElse(ImmutableList.of());
+
+        return new RequestValidationReport(
+            globalErrorsBuilder.build(),
+            parameterValidationErrors,
+            bodyErrors
+        );
+    }
+
+    private Optional<SwaggerOperationDef> findOperation(CheckableRequest request, ImmutableList.Builder<String> errors) {
         String path = request.getPath();
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
 
@@ -76,37 +106,25 @@ public class SwaggerHttpValidator {
             .filter((entry) -> new PathTemplate(entry.getKey()).matches(path))
             .findFirst();
 
-        if (maybeMatchingPath.isPresent()) {
-            String swaggerPath = maybeMatchingPath.map(Map.Entry::getKey).get();
-            Path swaggerPathDef = maybeMatchingPath.map(Map.Entry::getValue).get();
-
-            if (swaggerPathDef.getOperationMap().containsKey(method)) {
-                Operation operation = swaggerPathDef.getOperationMap().get(method);
-                PathTemplate pathTemplate = new PathTemplate(swaggerPath);
-
-                parameterErrorsBuilder.addAll(validatePathParameters(request, pathTemplate, operation));
-                parameterErrorsBuilder.addAll(validateQueryParameters(request, operation));
-                parameterErrorsBuilder.addAll(validateHeaderParameters(request, operation));
-                parameterErrorsBuilder.addAll(validateCookieParameters(request, operation));
-
-                try {
-                    bodyErrors = validateBodyIfPresent(request, operation);
-                } catch (ProcessingException e) {
-                    globalErrorsBuilder.add("Failed to validate request body. Reason: " + e.getMessage());
-                }
-
-            } else {
-                globalErrorsBuilder.add(String.format("Path '%s' does not support method %s", path, method));
-            }
-        } else {
-            globalErrorsBuilder.add(String.format("Path '%s' was not found in the spec", path));
+        if (!maybeMatchingPath.isPresent()) {
+            errors.add(String.format("Path '%s' was not found in the spec", path));
         }
 
-        return new RequestValidationReport(
-            globalErrorsBuilder.build(),
-            parameterErrorsBuilder.build(),
-            bodyErrors
-        );
+        return maybeMatchingPath.flatMap(entry -> {
+            Path swaggerPathDef = entry.getValue();
+            PathTemplate pathTemplate = new PathTemplate(entry.getKey());
+            Operation operation = swaggerPathDef.getOperationMap().get(method);
+
+            Optional<SwaggerOperationDef> maybeOperationDef = Optional.ofNullable(operation).map(swaggerOperation ->
+                new SwaggerOperationDef(pathTemplate, method.name(), swaggerOperation)
+            );
+
+            if (!maybeOperationDef.isPresent()) {
+                errors.add(String.format("Path '%s' does not support method %s", path, method));
+            }
+
+            return maybeOperationDef;
+        });
     }
 
     private List<ValidationError> validatePathParameters(CheckableRequest request, PathTemplate pathTemplate, Operation operation) {
@@ -165,6 +183,30 @@ public class SwaggerHttpValidator {
         }
 
         return bodyErrors.build();
+    }
+
+    public InteractionValidationReport validateInteraction(CheckableRequest request, CheckableResponse response) {
+        RequestValidationReport requestValidationReport = validateRequest(request);
+
+        ImmutableList.Builder<String> responseGlobalErrors = ImmutableList.builder();
+        Optional<SwaggerOperationDef> maybeOperationDef = findOperation(request, responseGlobalErrors);
+        ResponseValidationReport responseValidationReport = maybeOperationDef.map(operationDef -> {
+            responseGlobalErrors.addAll(validateResponseStatus(response, operationDef));
+            return new ResponseValidationReport(responseGlobalErrors.build());
+        }).orElse(ResponseValidationReport.NOT_MATCHED);
+
+        return new InteractionValidationReport(requestValidationReport, responseValidationReport);
+    }
+
+    private List<String> validateResponseStatus(CheckableResponse response, SwaggerOperationDef operationDef) {
+        String status = String.valueOf(response.getStatus());
+        return operationDef.getOperation().getResponses().containsKey(status) ?
+            emptyList() :
+            singletonList(String.format("%s %s has no associated response with status %s",
+                operationDef.getMethod(),
+                operationDef.getPathTemplate(),
+                response.getStatus())
+            );
     }
 
     @SuppressWarnings("unchecked")
