@@ -1,0 +1,253 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "v1",
+    "title": "My Example API",
+    "description": "An example API against which validation can be tested blah blah"
+  },
+  "host": "my.example.local",
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/users": {
+      "get": {
+        "summary": "Create a new user profile",
+        "description": "Creates a new user profile",
+        "operationId": "newUserProfile",
+        "produces": [
+          "application/json",
+          "text/json",
+          "application/xml",
+          "text/xml"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "type": "integer",
+            "format": "int32",
+            "maximum": 50,
+            "in": "query",
+            "description": "Max profiles to return",
+            "required": true
+          },
+          {
+            "name": "offset",
+            "type": "integer",
+            "format": "int32",
+            "maximum": 2000,
+            "exclusiveMaximum": true,
+            "in": "query",
+            "description": "Starting offset",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/UserProfile"
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": [
+          "user_profile",
+          "user"
+        ],
+        "summary": "Create a new user profile",
+        "description": "Creates a new user profile",
+        "operationId": "newUserProfile",
+        "consumes": [
+          "application/json",
+          "text/json",
+          "application/xml",
+          "text/xml",
+          "application/x-www-form-urlencoded"
+        ],
+        "produces": [
+          "application/json",
+          "text/json",
+          "application/xml",
+          "text/xml"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "body",
+            "description": "User profile",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          },
+          "400": {
+            "description": "Invalid profile"
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": [
+          "user_profile"
+        ],
+        "summary": "Fetch a new user profile",
+        "description": "Gets a user profile",
+        "operationId": "getUserProfile",
+        "produces": [
+          "application/json",
+          "text/json",
+          "application/xml",
+          "text/xml"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "format": "int32"
+          }
+        ]
+      },
+      "responses": {
+        "200": {
+          "description": "OK",
+          "schema": {
+            "$ref": "#/definitions/UserProfile"
+          }
+        },
+        "404": {
+          "description": "Not found"
+        }
+      },
+      "deprecated": false
+    },
+    "/users/{id}/avatars/{avatarName}": {
+      "get": {
+        "tags": [
+          "user_profile",
+          "user_avatar"
+        ],
+        "summary": "Fetch a user profile avatar",
+        "description": "Gets a user profile avatar",
+        "operationId": "getUserProfileAvatar",
+        "produces": [
+          "application/json",
+          "text/json",
+          "application/xml",
+          "text/xml"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "format": "int32"
+          },
+          {
+            "name": "avatarName",
+            "in": "path",
+            "maxLength": 10,
+            "required": true,
+            "type": "string"
+          }
+        ]
+      },
+      "responses": {
+        "200": {
+          "description": "OK",
+          "schema": {
+            "$ref": "#/definitions/UserProfile"
+          }
+        },
+        "404": {
+          "description": "Not found"
+        }
+      },
+      "deprecated": false
+    },
+    "/ping": {
+      "post": {
+        "summary": "Ping the system",
+        "parameters": [
+          {
+            "name": "X-Ping-Date",
+            "type": "string",
+            "format": "date-time",
+            "in": "header",
+            "description": "A custom date-time header",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ping OK. No content."
+          }
+        }
+      }
+    },
+    "/session": {
+      "get": {
+        "summary": "Refresh the session",
+        "parameters": [
+          {
+            "name": "SessionId",
+            "type": "string",
+            "format": "uuid",
+            "in": "cookie",
+            "description": "The session ID",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refreshed"
+          }
+        }
+      }
+    }
+  },
+
+
+  "definitions": {
+    "UserProfile": {
+      "required": [
+        "id",
+        "username"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_]*$",
+          "minLength": 3
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5
+        }
+      }
+    }
+  }
+}

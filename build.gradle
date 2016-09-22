@@ -1,0 +1,121 @@
+apply plugin: "java"
+apply plugin: "idea"
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+def shouldPublishLocally = System.getProperty('LOCAL_PUBLISH')
+URL localRepo = new File("${System.getProperty('user.home')}/.m2/repository").toURI().toURL()
+URL repoUrl = shouldPublishLocally ? localRepo : URI.create('https://oss.sonatype.org/service/local/staging/deploy/maven2').toURL()
+
+ext {
+    if (!project.hasProperty('sonatypeUrl')) sonatypeUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2'
+    if (!project.hasProperty('sonatypeUsername')) sonatypeUsername = ''
+    if (!project.hasProperty('sonatypePassword')) sonatypePassword = ''
+}
+
+group 'com.energizedwork'
+version '0.0.1'
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.1'
+    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
+}
+
+targetCompatibility = 1.8
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+def versions = [
+        jackson: '2.8.1',
+        swagger: '1.5.10'
+]
+
+dependencies {
+    compile 'io.swagger:swagger-parser:1.0.22'
+    compile 'com.github.fge:json-schema-validator:2.2.6'
+
+    compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+    compile "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
+
+    compile 'com.google.guava:guava:19.0'
+
+    testCompile 'junit:junit:4.12'
+    testCompile "org.hamcrest:hamcrest-all:1.3"
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar, javadocJar
+}
+
+def projectPom = {
+    name = 'swagger-http-validator'
+    description = 'A library for validating HTTP requests and responses against a Swagger specification'
+    url = 'https://github.com/energizedwork/swagger-http-validator'
+
+    scm {
+        connection 'https://github.com/energizedwork/swagger-http-validator.git'
+        developerConnection 'https://github.com/energizedwork/swagger-http-validator.git'
+        url 'https://github.com/energizedwork/swagger-http-validator.git'
+    }
+
+    licenses {
+        license {
+            name = 'The Apache Software License, Version 2.0'
+            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            distribution = 'repo'
+        }
+    }
+
+    developers {
+        developer {
+            id = 'energizedwork'
+            name = 'energizedwork'
+            email = 'info@energizedwork.com'
+        }
+    }
+}
+
+install {
+    repositories.mavenInstaller.pom.project(projectPom)
+}
+
+signing {
+    required { gradle.taskGraph.hasTask('uploadArchives') }
+    sign configurations.archives
+}
+
+uploadArchives {
+    repositories.mavenDeployer {
+        beforeDeployment { deployment -> signing.signPom(deployment) }
+
+        repository(url: repoUrl) {
+            authentication(userName: sonatypeUsername, password: sonatypePassword)
+        }
+
+        pom.project(projectPom)
+    }
+}
+
+task addGitTag << {
+    if (!shouldPublishLocally) {
+        println "git tag ${version}".execute().text
+        println "git push origin --tags".execute().text
+    }
+}
+
+task release {
+    dependsOn clean, jar, signArchives, uploadArchives, addGitTag
+}

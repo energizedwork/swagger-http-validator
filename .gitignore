@@ -1,0 +1,11 @@
+.idea
+*.iml
+*.iws
+*.ipr
+.gradle
+build
+classes
+
+tmp*.json
+
+out
